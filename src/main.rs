@@ -27,11 +27,18 @@ enum Method {
     Auth
 }
 
+fn split_string_element(e: String, v: &str) -> Vec<&str> {
+    e.split(v).by_ref().map(|ref x| x.clone()).collect::<Vec<_>>()
+}
 
 struct Request {
     url: String,
     method: Method,
-    header: HashMap<String,String>
+    header: HashMap<String,String>,
+    get_info: HashMap<String,String>,
+    post_info: HashMap<String,String>,
+    put_info: HashMap<String,String>,
+    delete_info: HashMap<String,String>
 }
 
 struct Responce {
@@ -98,11 +105,34 @@ impl Server {
         let mut buffer = [0; 500];
         stream.read(&mut buffer).unwrap();
         let sbuffer = String::from_utf8_lossy(&buffer[..]);
-        let split_buffer = sbuffer.split("\n").by_ref().collect::<Vec<_>>();
+        let split_buffer = split_string_element(sbuffer.to_string(), "\n");
 
-        let method = split_buffer[0].split(" ").by_ref().collect::<Vec<_>>()[0];
+        let method = split_string_element(split_buffer[0].to_string()," ")[0];
 
-        let url = split_buffer[0].split(" ").by_ref().collect::<Vec<_>>()[1];
+        let mut url = split_string_element(split_buffer[0].to_string()," ")[1];
+        let mut get_info = HashMap::new();
+        let mut post_info = HashMap::new();
+        let mut put_info = HashMap::new();
+        let mut delete_info = HashMap::new();
+        if url.contains("?") {
+            let split_url = split_string_element(url.to_string(), "?");
+            url = split_url[0];
+            if split_url.len() > 1{
+                let dict_split = split_string_element(split_url[1].to_string(), "&");
+                for i in dict_split.iter() {
+                    let dict_split_element = split_string_element(i.to_string().clone(), "=");
+                    get_info.insert(dict_split_element[0].to_string(), dict_split_element[1].to_string());
+                }
+
+            }
+        } else {
+
+        }
+        let mut header = HashMap::new();
+        for elt in split_buffer[1..].to_vec().iter() {
+            let e = elt.split(":").by_ref().collect::<Vec<_>>();
+            header.insert(e[0].to_string(), e[1].to_string());
+        }
         let request = Request {
             url: url.to_string(),
             method: match method {
@@ -112,7 +142,11 @@ impl Server {
                 "DELETE" => Method::Delete,
                 _ => Method::Auth
             },
-            header: HashMap::new()
+            header: header,
+            get_info: get_info,
+            post_info: post_info,
+            put_info: put_info,
+            delete_info: delete_info
         };
 
         let mut responce = router.handle_request(&request);
@@ -137,7 +171,11 @@ impl Request {
         Request {
             url: self.url.clone(),
             method: self.method,
-            header: HashMap::new()
+            header: self.header.clone(),
+            get_info: self.get_info.clone(),
+            post_info: self.post_info.clone(),
+            put_info: self.put_info.clone(),
+            delete_info: self.delete_info.clone()
         }
     }
 }
@@ -192,52 +230,4 @@ fn main() {
     server.start(router.clone());
 }
 
-fn listener(host: &str, port:i32) -> TcpListener {
-    let port_and_host: String = format!("{}:{}", host, port);
-    TcpListener::bind(port_and_host).unwrap()
-}
 
-fn incoming(tcp: TcpListener, handle: fn(&mut TcpStream, Router), router: Router) {
-    for stream in tcp.incoming() {
-        let mut stream = stream.unwrap();
-        handle(&mut stream, router.clone());
-    }
-}
-
-fn handle_request(tcp: &mut TcpStream, router: Router) {
-    let mut buffer = [0; 500];
-    tcp.read(&mut buffer).unwrap();
-    let sbuffer = String::from_utf8_lossy(&buffer[..]);
-    let split_buffer = sbuffer.split("\n").by_ref().collect::<Vec<_>>();
-
-    let method = split_buffer[0].split(" ").by_ref().collect::<Vec<_>>()[0];
-
-    let url = split_buffer[0].split(" ").by_ref().collect::<Vec<_>>()[1];
-    let request = Request {
-        url: url.to_string(),
-        method: match method {
-            "GET" => Method::Get,
-            "POST" => Method::Post,
-            "PUT" => Method::Put,
-            "DELETE" => Method::Delete,
-            _ => Method::Auth
-        },
-        header: HashMap::new()
-    };
-
-    let mut responce = router.handle_request(&request);
-    let res = format!(
-            "HTTP/1.1 {} OK\r\nContent-Length: {}\r\n\r\n{}",
-            responce.code,
-            responce.len,
-            responce.text
-        );
-    
-
-    tcp.write(res.as_bytes()).unwrap();
-    tcp.flush().unwrap();
-
-
-    println!("Request: {}", sbuffer);
-
-}
