@@ -26,10 +26,10 @@ enum Method {
     Delete,
     Auth
 }
-
+/*
 fn split_string_element(e: String, v: &str) -> Vec<&str> {
     e.split(v).by_ref().map(|ref x| x.clone()).collect::<Vec<_>>()
-}
+}*/
 
 struct Request {
     url: String,
@@ -105,22 +105,22 @@ impl Server {
         let mut buffer = [0; 500];
         stream.read(&mut buffer).unwrap();
         let sbuffer = String::from_utf8_lossy(&buffer[..]);
-        let split_buffer = split_string_element(sbuffer.to_string(), "\n");
+        let split_buffer = sbuffer.split("\n").by_ref().map(|ref x| x.clone()).collect::<Vec<_>>();
 
-        let method = split_string_element(split_buffer[0].to_string()," ")[0];
+        let method = split_buffer[0].split(" ").by_ref().map(|ref x| x.clone()).collect::<Vec<_>>()[0];
 
-        let mut url = split_string_element(split_buffer[0].to_string()," ")[1];
+        let mut url = split_buffer[0].split(" ").by_ref().map(|ref x| x.clone()).collect::<Vec<_>>()[1];
         let mut get_info = HashMap::new();
         let mut post_info = HashMap::new();
         let mut put_info = HashMap::new();
         let mut delete_info = HashMap::new();
         if url.contains("?") {
-            let split_url = split_string_element(url.to_string(), "?");
+            let split_url = url.split("?").by_ref().map(|ref x| x.clone()).collect::<Vec<_>>();
             url = split_url[0];
             if split_url.len() > 1{
-                let dict_split = split_string_element(split_url[1].to_string(), "&");
+                let dict_split = split_url[1].split("&").by_ref().map(|ref x| x.clone()).collect::<Vec<_>>();
                 for i in dict_split.iter() {
-                    let dict_split_element = split_string_element(i.to_string().clone(), "=");
+                    let dict_split_element = i.clone().split("=").by_ref().map(|ref x| x.clone()).collect::<Vec<_>>();
                     get_info.insert(dict_split_element[0].to_string(), dict_split_element[1].to_string());
                 }
 
@@ -131,7 +131,10 @@ impl Server {
         let mut header = HashMap::new();
         for elt in split_buffer[1..].to_vec().iter() {
             let e = elt.split(":").by_ref().collect::<Vec<_>>();
-            header.insert(e[0].to_string(), e[1].to_string());
+            if e.len() > 1 {
+                header.insert(e[0].to_string(), e[1].to_string());
+
+            }
         }
         let request = Request {
             url: url.to_string(),
@@ -224,8 +227,15 @@ impl ErrorHttp for Router {}
 fn main() {
     let mut server = Server::new("localhost", 2000);
     let mut router = Router::new();
-    router.get("/", |req| responce!(code=200, text="<p>hello world</p>"));
+    router.get("/", |req| {
+        match req.get_info.get("name") {
+            Some(name) => responce!(code=200, text=format!("<p>hello {}</p>", name)),
+            None => responce!(code=200, text="<p>hello world</p>")
+        }
+        
+    });
     router.get("/hello", |req| responce!(code=200, text="<h1>bonjour</h1>"));
+    router.post("/coucou", |req| responce!(code=200,text="<h1>COUCOU</h1>"));
 
     server.start(router.clone());
 }
