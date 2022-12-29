@@ -1,49 +1,56 @@
 use std::collections::HashMap;
-use crate::queryweb::QueryWeb;
-#[derive(Copy, Clone)]
-pub enum Method {
+use std::convert::TryInto;
+
+
+#[derive(Copy, Clone, Debug)]
+pub enum Method<'a> {
     Get,
     Post,
     Put,
     Delete,
-    Auth
+    Auth(&'a str)
 }
 
-pub struct Request {
+#[derive(Clone, Debug)]
+pub enum RequestBody<'a> {
+    Json(HashMap<String,String>),
+    Text(&'a str),
+    Query(HashMap<String,String>)
+}
+
+#[derive(Clone, Debug)]
+pub struct Request<'a> {
     pub url: String,
-    pub method: Method,
+    pub method: Method<'a>,
     pub header: HashMap<String,String>,
-    pub get_info: String,
-    pub post_info: String,
-    pub put_info: String,
-    pub delete_info: String
+    pub get_info: Option<RequestBody<'a>>,
+    pub post_info: Option<RequestBody<'a>>,
+    pub put_info: Option<RequestBody<'a>>,
+    pub delete_info: Option<RequestBody<'a>>,
+    pub url_query: Option<HashMap<String, String>>
 }
 
-impl Request {
-    fn clone(&self) -> Self {
-        Request {
-            url: self.url.clone(),
-            method: self.method,
-            header: self.header.clone(),
-            get_info: self.get_info.clone(),
-            post_info: self.post_info.clone(),
-            put_info: self.put_info.clone(),
-            delete_info: self.delete_info.clone()
+
+impl<'a> TryInto<HashMap<String, String>> for RequestBody<'a> {
+    type Error = &'a str;
+
+    fn try_into(self) -> Result<HashMap<String, String>, Self::Error> {
+        match self {
+            RequestBody::Json(h) => Ok(h),
+            RequestBody::Query(q) => Ok(q),
+            _ => Err("Not json or query value")
         }
     }
+}
 
-    pub fn get_json(&self) -> Result<HashMap<String, String>, String> {
-        self.get_info.from_json()
-    }
+impl<'a> TryInto<&'a str> for RequestBody<'a> {
+    type Error = &'a str;
 
-    pub fn get_querymap(&self) -> HashMap<String, String> {
-        self.get_info.clone().from_query_map()
-    }
-
-    pub fn get_args(&self, index: &str, default: &str) -> String {
-        return match self.get_querymap().get(index) {
-            Some(v) => v.to_string(),
-            None => default.to_string()
+    fn try_into(self) -> Result<&'a str, Self::Error> {
+        if let Self::Text(e) = self {
+            Ok(e)
+        } else {
+            Err("Self isnt of type Text")
         }
     }
 }

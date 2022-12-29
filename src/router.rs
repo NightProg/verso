@@ -6,13 +6,13 @@ use crate::error_http::ErrorHttp;
 type BoxCallback = Box<fn(&Request) -> Response >;
 
 #[derive(Clone)]
-pub struct Router  {
-    routes: HashMap<String,(Method, BoxCallback)>
+pub struct Router<'a>  {
+    routes: HashMap<String,(Method<'a>, BoxCallback)>
 }
 
-impl Router {
+impl<'a> Router<'a> {
 
-    pub fn new() -> Router {
+    pub fn new() -> Router<'a> {
         Router {
             routes: HashMap::new()
         }
@@ -40,18 +40,14 @@ impl Router {
     pub fn put(&mut self, url: &str, handle: fn(&Request) -> Response) {
         self.routes.insert(url.to_string(), (Method::Put,Box::new(handle)));
     }
-    pub fn delete (&mut self, url: &str, handle: fn(&Request) -> Response)  {
+    pub fn delete(&mut self, url: &str, handle: fn(&Request) -> Response)  {
         self.routes.insert(url.to_string(), (Method::Delete, Box::new(handle)));
     }
 
     pub(crate) fn handle_request(&self, request: &Request) -> Response {
         let res = match self.routes.get(&request.url) {
-            Some((method, callback)) => {
-                if let method = &request.method {
+            Some((_, callback)) => {
                     callback(request)
-                } else {
-                    Router::http_404(request)
-                }
             },
             None => Router::http_404(request)
         };
@@ -59,4 +55,4 @@ impl Router {
     }
 }
 
-impl ErrorHttp for Router {}
+impl<'a> ErrorHttp for Router<'a> {}
